@@ -1,0 +1,76 @@
+name: Build legacy-glibc package
+
+on:
+  schedule:
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: https://github.com/AbigailJixiangyuyu/opencode.git
+  SOURCE_BRANCH: patched-main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo C
+        uses: actions/checkout@v4
+
+      - name: Get latest source SHA from repo A
+        id: source_sha
+        run: |
+          SHA=$(git ls-remote $SOURCE_REPO refs/heads/$SOURCE_BRANCH | awk '{print $1}')
+          SHORT_SHA=$(echo "$SHA" | cut -c1-7)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Latest source SHA: $SHA"
+
+      - name: Check if release already exists
+        id: check_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="patched-main-${{ steps.source_sha.outputs.short_sha }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Stop if already built
+        if: steps.check_release.outputs.exists == 'true'
+        run: echo "This source SHA is already built."
+
+      - name: Build docker image
+        if: steps.check_release.outputs.exists != 'true'
+        run: |
+          docker build \
+            -f build/legacy-glibc/Dockerfile \
+            --build-arg REPO_URL=${SOURCE_REPO} \
+            --build-arg REF=${SOURCE_BRANCH} \
+            -t opencode-legacy-glibc:latest \
+            .
+
+      - name: Extract package from container
+        if: steps.check_release.outputs.exists != 'true'
+        run: |
+          CONTAINER_ID=$(docker create opencode-legacy-glibc:latest)
+          mkdir -p dist
+          docker cp $CONTAINER_ID:/opencode ./dist/opencode
+          docker rm $CONTAINER_ID
+          tar -czf opencode-${{ steps.check_release.outputs.tag }}-linux-x64-legacy-glibc.tar.gz -C dist opencode
+
+      - name: Create release
+        if: steps.check_release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.check_release.outputs.tag }}" \
+            "opencode-${{ steps.check_release.outputs.tag }}-linux-x64-legacy-glibc.tar.gz" \
+            --title "${{ steps.check_release.outputs.tag }}" \
+            --notes "Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_sha.outputs.sha }}"

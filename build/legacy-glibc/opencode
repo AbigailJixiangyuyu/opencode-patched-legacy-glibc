@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+
+mkdir -p /tmp/.opencode-ld
+mkdir -p /tmp/etc
+
+ln -sf "$LIB_DIR/ld-musl-x86_64.so.1" /tmp/.opencode-ld/ld-musl-x86_64.so.1
+echo "$LIB_DIR" > /tmp/etc/ld-musl-x86_64.path
+
+exec "$SCRIPT_DIR/opencode.bin" "$@"
