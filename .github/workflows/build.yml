@@ -20,21 +20,36 @@ jobs:
       - name: Checkout repo C
         uses: actions/checkout@v5
 
-      - name: Get latest source SHA from repo A
-        id: source_sha
+      - name: Get source info from repo A
+        id: source_info
         run: |
-          SHA=$(git ls-remote $SOURCE_REPO refs/heads/$SOURCE_BRANCH | awk '{print $1}')
-          SHORT_SHA=$(echo "$SHA" | cut -c1-7)
+          rm -rf source_repo
+          git clone --depth 1 --branch "$SOURCE_BRANCH" "$SOURCE_REPO" source_repo
+
+          SHA=$(git -C source_repo rev-parse HEAD)
+          UPSTREAM_TAG=$(git -C source_repo log -n 20 --pretty=%B | sed -n 's/^UPSTREAM_TAG=//p' | head -n 1)
+
+          if [ -z "$UPSTREAM_TAG" ]; then
+            echo "Failed to find UPSTREAM_TAG in repo A"
+            exit 1
+          fi
+
+          RELEASE_TAG="${UPSTREAM_TAG}-cjk-legacy-glibc"
+
           echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "Latest source SHA: $SHA"
+          echo "upstream_tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+
+          echo "Source SHA: $SHA"
+          echo "Upstream tag: $UPSTREAM_TAG"
+          echo "Release tag: $RELEASE_TAG"
 
       - name: Check if release already exists
         id: check_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="patched-main-${{ steps.source_sha.outputs.short_sha }}"
+          TAG="${{ steps.source_info.outputs.release_tag }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
@@ -44,7 +59,7 @@ jobs:
 
       - name: Stop if already built
         if: steps.check_release.outputs.exists == 'true'
-        run: echo "This source SHA is already built."
+        run: echo "This upstream version is already built."
 
       - name: Export package from Docker build
         if: steps.check_release.outputs.exists != 'true'
@@ -60,7 +75,7 @@ jobs:
             --output type=local,dest=dist \
             .
 
-          tar -czf opencode-${{ steps.check_release.outputs.tag }}-linux-x64-legacy-glibc.tar.gz -C dist opencode
+          tar -czf opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz -C dist opencode
 
       - name: Create release
         if: steps.check_release.outputs.exists != 'true'
@@ -68,6 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.check_release.outputs.tag }}" \
-            "opencode-${{ steps.check_release.outputs.tag }}-linux-x64-legacy-glibc.tar.gz" \
+            "opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" \
             --title "${{ steps.check_release.outputs.tag }}" \
-            --notes "Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_sha.outputs.sha }}"
+            --notes "Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_info.outputs.sha }}
+Upstream version: ${{ steps.source_info.outputs.upstream_tag }}"
