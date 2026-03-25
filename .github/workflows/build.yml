@@ -2,11 +2,21 @@ name: Build legacy-glibc package
 
 on:
   schedule:
-    - cron: '15 * * * *'
+    - cron: '0 */4 * * *'
   workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Patched source branch to build'
+        required: false
+        default: 'patched-main'
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: legacy-glibc-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   SOURCE_REPO: https://github.com/AbigailJixiangyuyu/opencode.git
@@ -17,29 +27,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo C
+      - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Get source info from repo A
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get patched source info
         id: source_info
+        env:
+          EFFECTIVE_SOURCE_BRANCH: ${{ inputs.source_branch || env.SOURCE_BRANCH }}
         run: |
           rm -rf source_repo
-          git clone --depth 1 --branch "$SOURCE_BRANCH" "$SOURCE_REPO" source_repo
+          git clone --depth 1 --branch "$EFFECTIVE_SOURCE_BRANCH" "$SOURCE_REPO" source_repo
 
           SHA=$(git -C source_repo rev-parse HEAD)
           UPSTREAM_TAG=$(git -C source_repo log -n 20 --pretty=%B | sed -n 's/^UPSTREAM_TAG=//p' | head -n 1)
 
           if [ -z "$UPSTREAM_TAG" ]; then
-            echo "Failed to find UPSTREAM_TAG in repo A"
+            echo "Failed to find UPSTREAM_TAG in patched source history"
             exit 1
           fi
 
           RELEASE_TAG="${UPSTREAM_TAG}-cjk-legacy-glibc"
 
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "upstream_tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
-          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "source_branch=$EFFECTIVE_SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "upstream_tag=$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
+          echo "Source repo: $SOURCE_REPO"
+          echo "Source branch: $EFFECTIVE_SOURCE_BRANCH"
           echo "Source SHA: $SHA"
           echo "Upstream tag: $UPSTREAM_TAG"
           echo "Release tag: $RELEASE_TAG"
@@ -50,32 +68,54 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.source_info.outputs.release_tag }}"
+
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Stop if already built
         if: steps.check_release.outputs.exists == 'true'
-        run: echo "This upstream version is already built."
+        run: echo "This patched upstream version is already built."
 
       - name: Export package from Docker build
         if: steps.check_release.outputs.exists != 'true'
         run: |
-          rm -rf dist
-          mkdir -p dist
+          rm -rf dist out
+          mkdir -p dist out
 
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             -f build/legacy-glibc/Dockerfile \
             --target export \
-            --build-arg REPO_URL=${SOURCE_REPO} \
-            --build-arg REF=${SOURCE_BRANCH} \
-            --output type=local,dest=dist \
+            --build-arg REPO_URL="${SOURCE_REPO}" \
+            --build-arg REF="${{ steps.source_info.outputs.source_branch }}" \
+            --output type=local,dest=out \
             .
 
-          tar -czf opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz -C dist opencode
+          tar -czf "dist/opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" -C out opencode
+
+      - name: Run compatibility tests
+        if: steps.check_release.outputs.exists != 'true'
+        run: |
+          docker build --platform linux/amd64 -t opencode-test-stretch -f build/test/Dockerfile .
+          docker run --platform linux/amd64 --rm opencode-test-stretch sh /opt/test-env.sh
+
+          docker build --platform linux/amd64 -t opencode-test-buster -f build/test/Dockerfile.buster .
+          docker run --platform linux/amd64 --rm opencode-test-buster sh /opt/test-env.sh
+
+          docker build --platform linux/amd64 -t opencode-test-centos7 -f build/test/Dockerfile.centos7 .
+          docker run --platform linux/amd64 --rm opencode-test-centos7 sh /opt/test-env.sh
+
+      - name: Upload build artifact
+        if: steps.check_release.outputs.exists != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-${{ steps.check_release.outputs.tag }}-linux-x64
+          path: dist/opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz
 
       - name: Create release
         if: steps.check_release.outputs.exists != 'true'
@@ -83,6 +123,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.check_release.outputs.tag }}" \
-            "opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" \
+            "dist/opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" \
             --title "${{ steps.check_release.outputs.tag }}" \
-            --notes "Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_info.outputs.sha }} | Upstream version: ${{ steps.source_info.outputs.upstream_tag }}"
+            --notes-file - <<EOF
+          Patched OpenCode legacy-glibc build with bundled musl libraries for older GLIBC systems.
+
+          ## Source
+          - Source repo: ${SOURCE_REPO}
+          - Source branch: ${{ steps.source_info.outputs.source_branch }}
+          - Source SHA: ${{ steps.source_info.outputs.sha }}
+          - Upstream tag: ${{ steps.source_info.outputs.upstream_tag }}
+
+          ## Validation
+          - Compatibility suite passed on Debian Stretch, Debian Buster, and CentOS 7
+
+          ## Installation
+          1. Download and extract the release tarball
+          2. Run `./opencode/bin/opencode`
+
+          See docs/TROUBLESHOOTING.md in this repository for architecture notes and local test commands.
+          EOF
