@@ -46,23 +46,20 @@ jobs:
         if: steps.check_release.outputs.exists == 'true'
         run: echo "This source SHA is already built."
 
-      - name: Build docker image
+      - name: Export package from Docker build
         if: steps.check_release.outputs.exists != 'true'
         run: |
+          rm -rf dist
+          mkdir -p dist
+
           docker build \
             -f build/legacy-glibc/Dockerfile \
+            --target export \
             --build-arg REPO_URL=${SOURCE_REPO} \
             --build-arg REF=${SOURCE_BRANCH} \
-            -t opencode-legacy-glibc:latest \
+            --output type=local,dest=dist \
             .
 
-      - name: Extract package from container
-        if: steps.check_release.outputs.exists != 'true'
-        run: |
-          CONTAINER_ID=$(docker create opencode-legacy-glibc:latest)
-          mkdir -p dist
-          docker cp $CONTAINER_ID:/opencode ./dist/opencode
-          docker rm $CONTAINER_ID
           tar -czf opencode-${{ steps.check_release.outputs.tag }}-linux-x64-legacy-glibc.tar.gz -C dist opencode
 
       - name: Create release
