@@ -82,12 +82,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES=$(cat <<EOF
-Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_info.outputs.sha }}
-Upstream version: ${{ steps.source_info.outputs.upstream_tag }}
-EOF
-)
           gh release create "${{ steps.check_release.outputs.tag }}" \
             "opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" \
             --title "${{ steps.check_release.outputs.tag }}" \
-            --notes "$NOTES"
+            --notes "Built from repo A: ${SOURCE_BRANCH} @ ${{ steps.source_info.outputs.sha }} | Upstream version: ${{ steps.source_info.outputs.upstream_tag }}"
