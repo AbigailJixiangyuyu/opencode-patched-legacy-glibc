@@ -1,9 +1,6 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-export LD_PRELOAD="$LIB_DIR/clear_ldpath.so"
-
-exec "$LIB_DIR/opencode" "$@"
+LD_PRELOAD="${SCRIPT_DIR}/lib/clear_ldpath.so" \
+  exec "${SCRIPT_DIR}/lib/opencode" "$@"

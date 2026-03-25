@@ -1,13 +1,20 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-mkdir -p /tmp/.opencode-ld
-mkdir -p /tmp/etc
+LOADER_DIR="/tmp/.opencode-ld"
+LOADER_PATH="${LOADER_DIR}/ld-musl-x86_64.so.1"
+MUSL_PATH_FILE="/tmp/etc/ld-musl-x86_64.path"
+LIB_DIR="${SCRIPT_DIR}/lib"
 
-ln -sf "$LIB_DIR/ld-musl-x86_64.so.1" /tmp/.opencode-ld/ld-musl-x86_64.so.1
-echo "$LIB_DIR" > /tmp/etc/ld-musl-x86_64.path
+if [ ! -e "$LOADER_PATH" ] || [ "$(readlink -f "$LOADER_PATH" 2>/dev/null)" != "${LIB_DIR}/ld-musl-x86_64.so.1" ]; then
+  mkdir -p "$LOADER_DIR" 2>/dev/null
+  ln -sf "${LIB_DIR}/ld-musl-x86_64.so.1" "$LOADER_PATH" 2>/dev/null
+fi
 
-exec "$SCRIPT_DIR/opencode.bin" "$@"
+if [ ! -f "$MUSL_PATH_FILE" ] || [ "$(cat "$MUSL_PATH_FILE" 2>/dev/null)" != "$LIB_DIR" ]; then
+  mkdir -p /tmp/etc 2>/dev/null
+  printf '%s' "$LIB_DIR" > "$MUSL_PATH_FILE" 2>/dev/null
+fi
+
+exec "${SCRIPT_DIR}/bin/opencode.bin" "$@"
