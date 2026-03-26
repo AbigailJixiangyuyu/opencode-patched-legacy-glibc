@@ -39,7 +39,7 @@ jobs:
           EFFECTIVE_SOURCE_BRANCH: ${{ inputs.source_branch || env.SOURCE_BRANCH }}
         run: |
           rm -rf source_repo
-          git clone --depth 1 --branch "$EFFECTIVE_SOURCE_BRANCH" "$SOURCE_REPO" source_repo
+          git clone --depth 20 --branch "$EFFECTIVE_SOURCE_BRANCH" "$SOURCE_REPO" source_repo
 
           SHA=$(git -C source_repo rev-parse HEAD)
           UPSTREAM_TAG=$(git -C source_repo log -n 20 --pretty=%B | sed -n 's/^UPSTREAM_TAG=//p' | head -n 1)
