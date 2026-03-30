@@ -89,6 +89,7 @@ jobs:
 
           docker buildx build \
             --platform linux/amd64 \
+            --no-cache \
             -f build/legacy-glibc/Dockerfile \
             --target export \
             --build-arg REPO_URL="${SOURCE_REPO}" \
