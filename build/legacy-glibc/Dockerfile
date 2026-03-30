@@ -6,7 +6,7 @@ FROM --platform=$BUILD_PLATFORM oven/bun:debian AS builder
 ARG REPO_URL
 ARG REF
 
-RUN apt-get update && apt-get install -y git patchelf python3 python3-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git patchelf python3 python3-dev make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
