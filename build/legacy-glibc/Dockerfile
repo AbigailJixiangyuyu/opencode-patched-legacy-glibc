@@ -5,6 +5,8 @@ FROM --platform=$BUILD_PLATFORM oven/bun:debian AS builder
 
 ARG REPO_URL
 ARG REF
+ARG OPENCODE_CHANNEL=latest
+ARG OPENCODE_VERSION
 
 RUN apt-get update && apt-get install -y git patchelf python3 python3-dev make g++ && rm -rf /var/lib/apt/lists/*
 
@@ -13,6 +15,8 @@ WORKDIR /build
 RUN git clone --depth 1 --branch "${REF}" "${REPO_URL}" .
 
 RUN bun install
+ENV OPENCODE_CHANNEL=${OPENCODE_CHANNEL}
+ENV OPENCODE_VERSION=${OPENCODE_VERSION}
 RUN ./packages/opencode/script/build.ts
 
 # Patch the binary to use a custom interpreter path that we'll symlink at runtime

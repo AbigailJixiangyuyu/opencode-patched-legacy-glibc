@@ -50,11 +50,13 @@ jobs:
           fi
 
           RELEASE_TAG="${UPSTREAM_TAG}-cjk-legacy-glibc"
+          OPENCODE_VERSION="${UPSTREAM_TAG#v}-cjk-legacy-glibc"
 
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "source_branch=$EFFECTIVE_SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
           echo "upstream_tag=$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "opencode_version=$OPENCODE_VERSION" >> "$GITHUB_OUTPUT"
 
           echo "Source repo: $SOURCE_REPO"
           echo "Source branch: $EFFECTIVE_SOURCE_BRANCH"
@@ -94,6 +96,7 @@ jobs:
             --target export \
             --build-arg REPO_URL="${SOURCE_REPO}" \
             --build-arg REF="${{ steps.source_info.outputs.source_branch }}" \
+            --build-arg OPENCODE_VERSION="${{ steps.source_info.outputs.opencode_version }}" \
             --output type=local,dest=out \
             .
 
