@@ -11,7 +11,7 @@ It tracks:
 
 - source repo: `https://github.com/AbigailJixiangyuyu/opencode`
 - source branch: `patched-main`
-- release tag format: `<UPSTREAM_TAG>-cjk-legacy-glibc`
+- release tag format: `<UPSTREAM_TAG>`
 
 The GitHub Actions workflow reads `UPSTREAM_TAG` from recent commits in the patched source repo, builds the legacy-compatible package, and publishes a matching release in this repository.
 

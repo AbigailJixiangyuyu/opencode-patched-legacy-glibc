@@ -49,8 +49,8 @@ jobs:
             exit 1
           fi
 
-          RELEASE_TAG="${UPSTREAM_TAG}-cjk-legacy-glibc"
-          OPENCODE_VERSION="${UPSTREAM_TAG#v}-cjk-legacy-glibc"
+          RELEASE_TAG="${UPSTREAM_TAG}"
+          OPENCODE_VERSION="${UPSTREAM_TAG#v}"
 
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "source_branch=$EFFECTIVE_SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
