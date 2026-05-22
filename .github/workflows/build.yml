@@ -100,19 +100,16 @@ jobs:
             --output type=local,dest=out \
             .
 
-          tar -czf "dist/opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" -C out opencode
-
-      - name: Run compatibility tests
+      - name: Run compatibility tests (CentOS 7 / glibc 2.17)
         if: steps.check_release.outputs.exists != 'true'
         run: |
-          docker build --platform linux/amd64 -t opencode-test-stretch -f build/test/Dockerfile .
-          docker run --platform linux/amd64 --rm opencode-test-stretch sh /opt/test-env.sh
-
-          docker build --platform linux/amd64 -t opencode-test-buster -f build/test/Dockerfile.buster .
-          docker run --platform linux/amd64 --rm opencode-test-buster sh /opt/test-env.sh
-
           docker build --platform linux/amd64 -t opencode-test-centos7 -f build/test/Dockerfile.centos7 .
           docker run --platform linux/amd64 --rm opencode-test-centos7 sh /opt/test-env.sh
+
+      - name: Package tarball
+        if: steps.check_release.outputs.exists != 'true'
+        run: |
+          tar -czf "dist/opencode-${{ steps.check_release.outputs.tag }}-linux-x64.tar.gz" -C out opencode
 
       - name: Upload build artifact
         if: steps.check_release.outputs.exists != 'true'

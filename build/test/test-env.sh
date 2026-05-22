@@ -181,6 +181,19 @@ else
 fi
 
 echo ""
+echo "=== 13. OpenTUI native library loads (regression test for issue #3) ==="
+TUI_OUT=$(timeout -s KILL 10 "$BIN/opencode" --print-logs --log-level ERROR </dev/null 2>&1 || true)
+if echo "$TUI_OUT" | grep -q "Failed to initialize OpenTUI render library"; then
+  fail "OpenTUI native library failed to load"
+  echo "$TUI_OUT" | grep -A2 "Failed to initialize OpenTUI" | head -6
+elif echo "$TUI_OUT" | grep -qE 'GLIBC_2\.(2[5-9]|3[0-9])'; then
+  fail "OpenTUI native library reports missing GLIBC symbols"
+  echo "$TUI_OUT" | grep -E 'GLIBC_' | head -3
+else
+  pass "OpenTUI native library loads without glibc errors"
+fi
+
+echo ""
 echo "============================================"
 printf "Results: \033[32m%d passed\033[0m" "$PASS"
 [ "$FAIL" -gt 0 ] && printf ", \033[31m%d failed\033[0m" "$FAIL"
